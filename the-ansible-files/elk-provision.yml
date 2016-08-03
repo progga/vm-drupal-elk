@@ -16,6 +16,9 @@
       apt_repository: repo="deb https://packages.elastic.co/logstash/2.3/debian stable main" filename="logstash-2.3.list" state=present
     - name: Add Kibana repo.
       apt_repository: repo="deb http://packages.elastic.co/kibana/4.5/debian stable main" filename="kibana-4.5.list" state=present
+    # Strangely enough, the Elasticsearch package does not mention the JRE as a dependency.
+    - name: Install Java runtime environment.
+      apt: name=default-jre-headless state=present
     - name: Install Elasticsearch.
       apt: name=elasticsearch state=present
     - name: Install Logstash.

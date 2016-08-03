@@ -6,7 +6,7 @@
       command: timedatectl set-ntp true
     - name: Install htop.
       apt: name=htop update_cache=yes state=present
-    - name: Setup log forwarding from rsyslog to logstash.
+    - name: Setup Drupal log forwarding from rsyslog to logstash.
       copy: src=conf/drupal/01-drupal-rsyslog.conf dest=/etc/rsyslog.d/01-drupal-rsyslog.conf
     - name: Restart Rsyslogd
       service: name=rsyslog state=restarted
