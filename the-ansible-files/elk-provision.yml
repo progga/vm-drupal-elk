@@ -1,0 +1,81 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Install htop.
+      apt: name=htop update_cache=yes state=present
+    - name: Activate Systemd-based time synchronization.
+      command: timedatectl set-ntp true
+    - name: Install apt method driver /usr/lib/apt/methods/https
+      apt: name=apt-transport-https state=present 
+    - name: Add Elastic.co's repo key.
+      apt_key: url=https://packages.elastic.co/GPG-KEY-elasticsearch state=present
+    - name: Add Elasticsearch repo.
+      apt_repository: repo="deb [arch=amd64] https://packages.elastic.co/elasticsearch/2.x/debian stable main" filename="elasticsearch-2.x.list" state=present
+    - name: Add Logstash repo.
+      apt_repository: repo="deb https://packages.elastic.co/logstash/2.3/debian stable main" filename="logstash-2.3.list" state=present
+    - name: Add Kibana repo.
+      apt_repository: repo="deb http://packages.elastic.co/kibana/4.5/debian stable main" filename="kibana-4.5.list" state=present
+    - name: Install Elasticsearch.
+      apt: name=elasticsearch state=present
+    - name: Install Logstash.
+      apt: name=logstash state=present
+    - name: Install Kibana.
+      apt: name=kibana state=present
+    - name: Install python-pip which is necessary for installing Curator.
+      apt: name=python-pip state=present
+    - name: Install Curator.
+      pip: name=elasticsearch-curator state=present
+    - name: Update system settings for Elasticsearch.
+      lineinfile: dest=/etc/default/elasticsearch insertafter="#ES_HEAP_SIZE=2g" line="ES_HEAP_SIZE=512m"
+    - name: Set Elasticsearch cluster name.
+      lineinfile: 'dest=/etc/elasticsearch/elasticsearch.yml insertafter="# cluster.name: my-application" line="cluster.name: elasticsearch-log-store"'
+    - name: Set Elasticsearch node name.
+      lineinfile: 'dest=/etc/elasticsearch/elasticsearch.yml insertafter="# node.name: node-1" line="node.name: elasticsearch-log-store-node-0"'
+    - name: Set Elasticsearch memory lock.
+      lineinfile: 'dest=/etc/elasticsearch/elasticsearch.yml insertafter="# bootstrap.mlockall: true" line="bootstrap.mlockall: true"'
+    - name: Set Elasticsearch host IP.
+      lineinfile: 'dest=/etc/elasticsearch/elasticsearch.yml insertafter="# network.host: 192.168.0.1" line="network.host: 127.0.0.1"'
+    - name: Create limits file for Elasticsearch.
+      copy: src=conf/elk/elasticsearch-limits.conf dest=/etc/security/limits.d/elasticsearch.conf
+    - name: Update system settings for Logstash.
+      lineinfile: dest=/etc/default/logstash insertafter="#LS_HEAP_SIZE=\"1g\"" line="LS_HEAP_SIZE=256m"
+    - name: Copy configuration file for processing Drupal's syslog entries that are forwarded to Logstash.
+      copy: src=conf/elk/01-drupal-logstash.conf dest=/etc/logstash/conf.d/01-drupal-logstash.conf
+    - name: Create a directory for storing files used by Curator.
+      file: path=/opt/curator-files state=directory
+    - name: Copy configuration and action files for Curator to prune Elasticsearch indices.
+      copy: src={{ item.src }} dest={{ item.dest }}
+      with_items:
+        - src: conf/elk/curator-config.yml
+          dest: /opt/curator-files/curator-config.yml
+        - src: conf/elk/curator-elasticsearch-action-age.yml
+          dest: /opt/curator-files/curator-elasticsearch-action-age.yml
+        - src: conf/elk/curator-elasticsearch-action-space.yml
+          dest: /opt/curator-files/curator-elasticsearch-action-space.yml
+    - name: Setup cronjob to run Curator.
+      cron:
+        name: "{{ item.name }}"
+        special_time: hourly
+        user: root
+        job: /usr/local/bin/curator --config /opt/curator-files/curator-config.yml {{ item.action_file }}
+        cron_file: ansible-curator-elasticsearch
+      with_items:
+        - name: Prune Elasticsearch indices based on age.
+          action_file: /opt/curator-files/curator-elasticsearch-action-age.yml
+        - name: Prune Elasticsearch indices based on disk space usage.
+          action_file: /opt/curator-files/curator-elasticsearch-action-space.yml
+    - name: Setup logrotate file for Curator's log file.
+      copy: src=conf/elk/curator-logrotate.conf dest=/etc/logrotate.d/curator
+    - name: Start Elasticsearch
+      service: name=elasticsearch state=started enabled=yes
+    # For whatever reason, the "service" module is unable to
+    # configure Elasticsearch to start at boot time.
+    - name: Enable Elasticsearch systemd service.
+      command: systemctl enable elasticsearch
+      args:
+        creates: /etc/systemd/system/multi-user.target.wants/elasticsearch.service
+    - name: Start Kibana
+      service: name=kibana state=started enabled=yes
+    - name: Start Logstash
+      service: name=logstash state=started enabled=yes

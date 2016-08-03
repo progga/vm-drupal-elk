@@ -1,0 +1,90 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: Activate Systemd-based time synchronization.
+      command: timedatectl set-ntp true
+    - name: Install htop.
+      apt: name=htop update_cache=yes state=present
+    - name: Setup log forwarding from rsyslog to logstash.
+      copy: src=conf/drupal/01-drupal-rsyslog.conf dest=/etc/rsyslog.d/01-drupal-rsyslog.conf
+    - name: Restart Rsyslogd
+      service: name=rsyslog state=restarted
+    - name: Install Apache.
+      apt: name=apache2 update_cache=yes state=present
+    - name: Enable mod_rewrite
+      apache2_module: name=rewrite state=present
+    - name: Enable mod_actions
+      apache2_module: name=actions state=present
+    - name: Install mod_fastcgi
+      apt: name=libapache2-mod-fastcgi state=present
+    - name: Install php5-fpm
+      apt: name=php5-fpm state=present
+    - name: Set php5-fpm's max children to 3 as we have very little RAM.
+      ini_file: dest=/etc/php5/fpm/pool.d/www.conf section=www option=pm.max_children value=3
+    - name: Set php5-fpm's min_spare_servers to 1 as we have very little RAM.
+      ini_file: dest=/etc/php5/fpm/pool.d/www.conf section=www option=pm.min_spare_servers value=1
+    - name: Set php5-fpm's max_spare_servers to 2 as we have very little RAM.
+      ini_file: dest=/etc/php5/fpm/pool.d/www.conf section=www option=pm.max_spare_servers value=2
+    - name: Install php5-sqlite
+      apt: name=php5-sqlite state=present
+    - name: Install sqlite3
+      apt: name=sqlite3 state=present
+    - name: Install php5-gd
+      apt: name=php5-gd state=present
+    - name: Create php5-fpm configuration file for Apache.
+      copy: src=conf/drupal/php5-fpm-apache.conf dest=/etc/apache2/conf-available/php5-fpm.conf
+    - name: Enable php5-fpm apache conf.
+      command: a2enconf php5-fpm
+    - name: Install git.
+      apt: name=git state=present
+    - name: Install composer.
+      get_url: url=https://getcomposer.org/composer.phar dest=/usr/local/bin/composer mode="u=rwx,g=rx,o=rx"
+    - name: Install Drush.
+      command: composer create-project drush/drush:~8 /usr/local/share/drush
+      args:
+        creates: /usr/local/share/drush/drush
+    - name: Create symlink to make Drush available system-wide.
+      file: src=/usr/local/share/drush/drush dest=/usr/local/bin/drush state=link
+    - name: Fetch Drupal.
+      command: composer create-project drupal/drupal:~8 /srv/www/drupal
+      args:
+        creates: /srv/www/drupal/index.php
+    - name: Update file permission of Drupal instance.
+      file: path=/srv/www/drupal recurse=yes owner=vagrant group=vagrant state=directory
+    - name: Install Drupal.
+      command: drush -y site-install minimal --db-url=sqlite:///var/lib/drupal/d8.sqlite --site-name="Syslog demo site" --account-name=admin --account-pass=admin
+      args:
+        chdir: /srv/www/drupal
+        creates: /srv/www/drupal/sites/default/settings.php
+    - name: Update file permission of Drupal's settings.php file.
+      file: path=/srv/www/drupal/sites/default/settings.php owner=vagrant group=vagrant mode="u=rw,g=rw,o=r" state=file
+    - name: Update file permission of Drupal instance's "files" directory.
+      file: path=/srv/www/drupal/sites/default/files recurse=yes owner=vagrant group=www-data mode="u=rwx,g=rwxs,o=rx" state=directory
+    - name: Sqlite database directory needs write permission for php5-fpm user.
+      file: path=/var/lib/drupal owner=vagrant group=www-data mode="u=rwx,g=rwx" state=directory
+    - name: Update file permission of Drupal's database file.
+      file: path=/var/lib/drupal/d8.sqlite owner=vagrant group=www-data mode="u=rw,g=rw,o=r" state=file
+    - name: Enable Drupal's syslog module.
+      command: drush -y pm-enable syslog
+      args:
+        chdir: /srv/www/drupal
+    - name: Setup cron for Drupal.
+      cron:
+        name: "Call Drupal's cron every hour."
+        special_time: hourly
+        user: vagrant
+        job: /usr/local/bin/drush -y --root=/srv/www/drupal cron &> /tmp/drupal-last-cron-run-output.txt
+        cron_file: ansible-drupal-cron 
+    - name: Create virtual host configuration for drupal.dev.
+      copy: src=conf/drupal/drupal.dev-vhost.conf dest=/etc/apache2/sites-available/drupal.dev.conf
+    - name: Update Apache's default virtual host configuration.
+      lineinfile: dest=/etc/apache2/sites-available/000-default.conf insertafter="#ServerName www.example.com" line="ServerName _default_"
+    - name: Enable drupal.dev site.
+      command: a2ensite drupal.dev
+      args:
+        creates: /etc/apache2/sites-enabled/drupal.dev.conf
+    - name: Start php5-fpm.
+      service: name=php5-fpm state=started enabled=yes
+    - name: Restart Apache.
+      service: name=apache2 state=restarted enabled=yes

@@ -1,0 +1,26 @@
+---
+actions:
+  1:
+    action: delete_indices
+    description: >-
+      Delete older Logstash indices stored in Elasticsearch when
+      the combined size of all Logstash indices is more than 1GB.
+    options:
+      ignore_empty_list: True
+      timeout_override:
+      continue_if_exception: False
+      disable_action: False 
+    filters:
+      - filtertype: pattern
+        kind: prefix
+        value: logstash-
+        exclude: False
+      - filtertype: space
+        disk_space: 1
+        reverse: True
+        use_age: False
+        source: name
+        timestring: '%Y.%m.%d'
+        field:
+        stats_result:
+        exclude: False

@@ -1,0 +1,29 @@
+[
+  {
+    "_id": "Drupal",
+    "_type": "search",
+    "_source": {
+      "title": "Drupal",
+      "description": "",
+      "hits": 0,
+      "columns": [
+        "severity_label",
+        "drupal_log_type",
+        "drupal_log_msg",
+        "drupal_client_ip",
+        "drupal_request_uri",
+        "drupal_referer_uri",
+        "drupal_userid",
+        "host"
+      ],
+      "sort": [
+        "@timestamp",
+        "desc"
+      ],
+      "version": 1,
+      "kibanaSavedObjectMeta": {
+        "searchSourceJSON": "{\"index\":\"logstash-*\",\"filter\":[],\"highlight\":{\"pre_tags\":[\"@kibana-highlighted-field@\"],\"post_tags\":[\"@/kibana-highlighted-field@\"],\"fields\":{\"*\":{}},\"require_field_match\":false,\"fragment_size\":2147483647}}"
+      }
+    }
+  }
+]
