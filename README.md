@@ -9,10 +9,13 @@ explored using Kibana which provides a web interface for the logs.
 
 Purpose
 -------
+This Vagrant project has been created as an accessory to an [article about
+setting up the ELK stack for managing Drupal's log] (https://demo.codesetter.com/drupal-log-elasticsearch-logstash-kibana).
+
 There are quite a few online tutorials and presentations on how to save and use
 Drupal's logs in Elasticsearch.  But I have not found any online demo.  This
 Vagrant project tries to fill in that gap.  It is not an online demo of course,
-instead it will let you spin two VMs running Drupal and the ELK stack.  You can
+instead it will let you spin up two VMs running Drupal and the ELK stack.  You can
 then find out how it feels like to play with Drupal's logs from inside Kibana's
 web interface.  If you like it, you can then use the relevant configuration
 files to setup your own environment.  If you *do not* like it, you can destroy
@@ -39,7 +42,9 @@ Software versions in the VMs
 Notes on Ansible playbooks
 --------------------------
 The playbooks in this repository are very basic and are not at all
-production-grade.  You can use them as a basis for writing your own playbooks.
-The nature of the playbook syntax means anyone can read them and figure
-out what is going on.  That understanding along with the configuration
-files are the primary take-away from this repository.
+production-grade.  They are also specific to Debian.  They may work in Ubuntu,
+but certainly not in Redhat derived distributions.  Whatever the case, you can
+use them as a basis for writing your own playbooks.  The nature of the playbook
+syntax means anyone can read them and figure out what is going on.  That
+understanding along with the configuration files are the primary take-away from
+this repository.
